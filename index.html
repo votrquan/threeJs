@@ -1,17 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>threeJS</title>
-    <script type="text/javascript" src="js/three.js"></script>
-    <link rel="stylesheet" href="css/style.css">
-    <script type="text/javascript" src="js/custom.js"></script>
-</head>
-<body>
-    <div id="word">
 
-    </div>
+<head>
+  <title>three.js webgl - glTF loader</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <!-- <link type="text/css" rel="stylesheet" href="main.css"> -->
+</head>
+
+<body>
+  <div id="info">
+    <!-- <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> - GLTFLoader<br />
+			Battle Damaged Sci-fi Helmet by
+			<a href="https://sketchfab.com/theblueturtle_" target="_blank" rel="noopener">theblueturtle_</a><br />
+			<a href="https://hdrihaven.com/hdri/?h=royal_esplanade" target="_blank" rel="noopener">Royal Esplanade</a> by <a href="https://hdrihaven.com/" target="_blank" rel="noopener">HDRI Haven</a> -->
+  </div>
+
+  <script type="module">
+
+    import * as THREE from './min/three.module.js';
+    import { OrbitControls } from './min/OrbitControls.js';
+    import { GLTFLoader } from './min/GLTFLoader.js';
+    import { RGBELoader } from './min/RGBELoader.js';
+    import { RoughnessMipmapper } from './min/RoughnessMipmapper.js';
+    import { DragControls } from './min/DragControls.js';
+
+    var container, controls, dragControls;
+    var camera, scene, renderer;
+    // var dragobjects = [];
+    // //add following code in init function
+    // var gltfobject = addGLTFObjectIntoScene();
+    // scene.add(gltfobject);
+
+    init();
+    render();
+
+    function init() {
+
+      container = document.createElement('div');
+      document.body.appendChild(container);
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.25, 20);
+      camera.position.set(0, 0.6, 10);
+
+      scene = new THREE.Scene();
+
+      new RGBELoader()
+        .setDataType(THREE.UnsignedByteType)
+        .setPath('textures/')
+        .load('Road_to_MonumentValley_Env.hdr', function (texture) {
+
+          var envMap = pmremGenerator.fromEquirectangular(texture).texture;
+
+          scene.background = envMap;
+          scene.environment = envMap;
+
+          texture.dispose();
+          pmremGenerator.dispose();
+
+          render();
+
+          // model
+
+          // use of RoughnessMipmapper is optional
+          var roughnessMipmapper = new RoughnessMipmapper(renderer);
+          roughnessMipmapper.dispose();
+
+          // var loader = new GLTFLoader().setPath('rusty_container/');
+          // loader.load('scene.gltf', function (gltf) {
+
+          //   // gltf.scene.traverse( function ( child ) {
+
+          //   // 	if ( child.isMesh) gltf.push( child );
+
+          //   // } );
+
+          //   scene.add(gltf.scene);
+
+          //   roughnessMipmapper.dispose();
+
+          //   render();
+
+          // });
+
+        });
+
+      var loader = new GLTFLoader();
+      loader.load('rusty_container/scene.gltf', function (gltf) {
+        scene.add(gltf.scene);
+        render();
+      });
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      container.appendChild(renderer.domElement);
+
+      var pmremGenerator = new THREE.PMREMGenerator(renderer);
+      pmremGenerator.compileEquirectangularShader();
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.addEventListener('change', render); // use if there is no animation loop
+      controls.minDistance = 2;
+      controls.maxDistance = 10;
+      controls.target.set(0, 0, - 0.2);
+      controls.update();
+
+      // dragControls = new DragControls(loader, camera, renderer.domElement);
+      // dragControls.addEventListener('dragstart', onDragStart, false);
+      // dragControls.addEventListener('drag', onDrag, false);
+      // dragControls.addEventListener('dragend', onDragEnd, false);
+
+
+      window.addEventListener('resize', onWindowResize, false);
+      
+    }
+
+    function onWindowResize() {
+
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+      render();
+
+    }
+
+    //
+
+    function render() {
+
+      renderer.render(scene, camera);
+
+    }
+
+    function drawBox(objectwidth, objectheight, objectdepth) {
+      var geometry, material, box;
+      geometry = new THREE.BoxGeometry(objectwidth, objectheight, objectdepth);
+      material = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthTest: false });
+      box = new THREE.Mesh(geometry, material);
+      dragobjects.push(box);
+      box.position.set(0, 0, 0);
+      return box;
+    };
+
+    function addGLTFObjectIntoScene() {
+      group = new THREE.Group();
+      var loader = new THREE.GLTFLoader();
+      loader.load('W1230/W1230.gltf', (gltf) => {
+        mesh = gltf.scene;
+        mesh.scale.set(30, 30, 30);
+        var gltfbox = new THREE.Box3().setFromObject(mesh);
+        var objectwidth = Math.floor(gltfbox.getSize().x);
+        var objectheight = Math.floor(gltfbox.getSize().y);
+        var objectdepth = Math.floor(gltfbox.getSize().z);
+        objectwidth = objectwidth + parseInt(2);
+        objectheight = objectheight + parseInt(2);
+        objectdepth = objectdepth + parseInt(1);
+        mesh.position.set(0, -objectheight / 2, 0);
+        box = drawBox(objectwidth, objectheight, objectdepth);
+        group.add(box);
+        group.name = "quadrant";
+        console.log(mesh);
+        box.add(mesh);
+      });
+      return group;
+    };
+  </script>
+
 </body>
+
 </html>
