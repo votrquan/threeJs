@@ -15,7 +15,7 @@
 			<a href="https://sketchfab.com/theblueturtle_" target="_blank" rel="noopener">theblueturtle_</a><br />
 			<a href="https://hdrihaven.com/hdri/?h=royal_esplanade" target="_blank" rel="noopener">Royal Esplanade</a> by <a href="https://hdrihaven.com/" target="_blank" rel="noopener">HDRI Haven</a> -->
   </div>
-
+  <!-- <progress value="0" max="100" id="progressBar"></progress> -->
   <script type="module">
 
     import * as THREE from './min/three.module.js';
@@ -24,168 +24,110 @@
     import { RGBELoader } from './min/RGBELoader.js';
     import { RoughnessMipmapper } from './min/RoughnessMipmapper.js';
     import { DragControls } from './min/DragControls.js';
+    import Stats from './min/stats.module.js';
 
-    var container, controls, dragControls;
-    var camera, scene, renderer;
-    var objects = [];
-    // var dragobjects = [];
-    // //add following code in init function
-    // var gltfobject = addGLTFObjectIntoScene();
-    // scene.add(gltfobject);
+    const scene = new THREE.Scene();
+    const axesHelper = new THREE.AxesHelper(5);
+    scene.add(axesHelper);
+    var light1 = new THREE.PointLight();
+    light1.position.set(2.5, 2.5, 2.5);
+    light1.castShadow = true;
+    scene.add(light1);
+    var light2 = new THREE.PointLight();
+    light2.position.set(-2.5, 2.5, 2.5);
+    light2.castShadow = true;
+    scene.add(light2);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
+    camera.position.set(0.4, 1.2, 0.5);
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+    const orbitControls = new OrbitControls(camera, renderer.domElement);
+    orbitControls.screenSpacePanning = true;
+    orbitControls.target.set(0, .8, 0);
+    const sceneMeshes = [];
+    let boxHelper;
+    const dragControls = new DragControls(sceneMeshes, camera, renderer.domElement);
+    dragControls.addEventListener("hoveron", function (event) {
+      boxHelper.visible = true;
+      orbitControls.enabled = false;
+    });
+    dragControls.addEventListener("hoveroff", function (event) {
+      boxHelper.visible = true;
+      orbitControls.enabled = true;
+    });
+    dragControls.addEventListener("drag", function (event) {
+      event.object.position.y = 0;
+    });
+    dragControls.addEventListener('dragstart', function (event) {
+      boxHelper.visible = true;
+      orbitControls.enabled = false;
+    });
+    dragControls.addEventListener('dragend', function (event) {
+      boxHelper.visible = true;
+      orbitControls.enabled = true;
+    });
+    const planeGeometry = new THREE.PlaneGeometry(25, 25);
+    const texture = new THREE.TextureLoader().load("img/grid.png");
+    const plane = new THREE.Mesh(planeGeometry, new THREE.MeshPhongMaterial({ map: texture }));
+    plane.rotateX(-Math.PI / 2);
+    plane.receiveShadow = true;
+    scene.add(plane);
+    let mixer;
+    let modelReady = false;
+    const gltfLoader = new GLTFLoader();
+    let modelGroup;
+    let modelDragBox;
 
-    init();
-    render();
+    gltfLoader.load('rusty_container/scene.gltf', function (gltf) {
+      gltf.scene.traverse(function (child) {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.frustumCulled = false;
+          child.geometry.computeVertexNormals();
+          modelGroup = gltf.scene;
+          modelDragBox = new THREE.Mesh(new THREE.BoxGeometry(1, 1, .5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+          modelDragBox.geometry.translate(0, .65, 0);
+          scene.add(modelDragBox);
+          sceneMeshes.push(modelDragBox);
+          boxHelper = new THREE.BoxHelper(modelDragBox, 0xffff00);
+          boxHelper.visible = false;
+          scene.add(boxHelper);
+          scene.add(gltf.scene);
+          modelReady = true;
+        }
 
-    function init() {
-
-      container = document.createElement('div');
-      document.body.appendChild(container);
-
-      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.25, 20);
-      camera.position.set(0, 0.6, 10);
-
-      scene = new THREE.Scene();
-
-      new RGBELoader()
-        .setDataType(THREE.UnsignedByteType)
-        .setPath('textures/')
-        .load('Road_to_MonumentValley_Env.hdr', function (texture) {
-
-          var envMap = pmremGenerator.fromEquirectangular(texture).texture;
-
-          scene.background = envMap;
-          scene.environment = envMap;
-
-          texture.dispose();
-          pmremGenerator.dispose();
-
-          render();
-
-          // model
-
-          // use of RoughnessMipmapper is optional
-          var roughnessMipmapper = new RoughnessMipmapper(renderer);
-          roughnessMipmapper.dispose();
-
-          // var loader = new GLTFLoader().setPath('rusty_container/');
-          // loader.load('scene.gltf', function (gltf) {
-
-          //   // gltf.scene.traverse( function ( child ) {
-
-          //   // 	if ( child.isMesh) gltf.push( child );
-
-          //   // } );
-
-          //   scene.add(gltf.scene);
-
-          //   roughnessMipmapper.dispose();
-
-          //   render();
-
-          // });
-
-        });
-
-      var loader = new GLTFLoader();
-      loader.load('rusty_container/scene.gltf', function (gltf) {
-        gltf.scene.traverse(function (object) {
-
-          if (object.isMesh) objects.push(object);
-
-        });
-        gltf.scene.position.x = 1;
-        gltf.scene.position.y = 1;
-        gltf.scene.position.z = -1;
-        scene.add(gltf.scene);
-        render();
       });
-      loader.load('rusty_container/scene.gltf', function (gltf) {
-        gltf.scene.position.x = -1;
-        gltf.scene.position.y = -1;
-        gltf.scene.position.z = -1;
-        scene.add(gltf.scene);
-        render();
-      });
-
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1;
-      renderer.outputEncoding = THREE.sRGBEncoding;
-      container.appendChild(renderer.domElement);
-
-      var pmremGenerator = new THREE.PMREMGenerator(renderer);
-      pmremGenerator.compileEquirectangularShader();
-
-      // controls = new OrbitControls(camera, renderer.domElement);
-      // controls.addEventListener('change', render); // use if there is no animation loop
-      // controls.minDistance = 2;
-      // controls.maxDistance = 10;
-      // controls.target.set(0, 0, - 0.2);
-      // controls.update();
-
-      dragControls = new DragControls(objects, camera, renderer.domElement);
-      // dragControls.addEventListener('dragstart', onDragStart, false);
-      // dragControls.addEventListener('drag', onDrag, false);
-      // dragControls.addEventListener('dragend', onDragEnd, false);
-
-
-      window.addEventListener('resize', onWindowResize, false);
-
-    }
-
+    }, (error) => {
+      console.log(error);
+    });
+    window.addEventListener('resize', onWindowResize, false);
     function onWindowResize() {
-
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
-
       renderer.setSize(window.innerWidth, window.innerHeight);
-
       render();
-
     }
+    // const stats = Stats();
+    // document.body.appendChild(stats.dom);
+    const clock = new THREE.Clock();
+    var animate = function () {
+      requestAnimationFrame(animate);
+      orbitControls.update();
 
-    //
-
+      if (modelReady) {
+        // mixer.update(clock.getDelta());
+        modelGroup.position.copy(modelDragBox.position);
+        boxHelper.update();
+      }
+      render();
+      // stats.update();
+    };
     function render() {
-
       renderer.render(scene, camera);
-
     }
-
-    function drawBox(objectwidth, objectheight, objectdepth) {
-      var geometry, material, box;
-      geometry = new THREE.BoxGeometry(objectwidth, objectheight, objectdepth);
-      material = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0, depthTest: false });
-      box = new THREE.Mesh(geometry, material);
-      dragobjects.push(box);
-      box.position.set(0, 0, 0);
-      return box;
-    };
-
-    function addGLTFObjectIntoScene() {
-      group = new THREE.Group();
-      var loader = new THREE.GLTFLoader();
-      loader.load('W1230/W1230.gltf', (gltf) => {
-        mesh = gltf.scene;
-        mesh.scale.set(30, 30, 30);
-        var gltfbox = new THREE.Box3().setFromObject(mesh);
-        var objectwidth = Math.floor(gltfbox.getSize().x);
-        var objectheight = Math.floor(gltfbox.getSize().y);
-        var objectdepth = Math.floor(gltfbox.getSize().z);
-        objectwidth = objectwidth + parseInt(2);
-        objectheight = objectheight + parseInt(2);
-        objectdepth = objectdepth + parseInt(1);
-        mesh.position.set(0, -objectheight / 2, 0);
-        box = drawBox(objectwidth, objectheight, objectdepth);
-        group.add(box);
-        group.name = "quadrant";
-        console.log(mesh);
-        box.add(mesh);
-      });
-      return group;
-    };
+    animate();
   </script>
 
 </body>
